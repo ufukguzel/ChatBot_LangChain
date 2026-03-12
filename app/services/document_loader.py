@@ -13,9 +13,11 @@ logger = logging.getLogger(__name__)
 _PDF_AVAILABLE = True
 try:
     from pypdf import PdfReader  # type: ignore
-except ImportError:
+except (ImportError, BaseException):
+    # BaseException catches pyo3 PanicException that can occur when native
+    # cryptography bindings are broken in certain environments.
     _PDF_AVAILABLE = False
-    logger.warning("pypdf not installed — PDF files will be decoded as raw bytes.")
+    logger.warning("pypdf not available — PDF files will be decoded as raw bytes.")
 
 
 def load_bytes(filename: str, data: bytes) -> str:
