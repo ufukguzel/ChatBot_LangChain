@@ -1,0 +1,31 @@
+# ============================================================
+# LangChain Chatbot — Python dependencies
+# ============================================================
+# Install with:  pip install -r requirements.txt
+# ============================================================
+
+# --- Web framework (required for web UI) --------------------
+fastapi>=0.111.0
+uvicorn[standard]>=0.29.0
+python-multipart>=0.0.9   # multipart/form-data file uploads
+
+# --- LangChain (required for real LLM calls) ----------------
+langchain-openai>=0.1.8
+langchain-core>=0.2.0
+langchain-text-splitters>=0.2.0
+
+# --- RAG / Vector search (optional but recommended) ---------
+langchain-community>=0.2.0
+faiss-cpu>=1.8.0           # CPU-only build; use faiss-gpu on CUDA systems
+
+# --- PDF support (optional) ---------------------------------
+pypdf>=4.2.0
+
+# --- Config helpers -----------------------------------------
+python-dotenv>=1.0.1
+pydantic>=2.7.0            # bundled with FastAPI but pinning for clarity
+
+# --- Testing ------------------------------------------------
+pytest>=8.2.0
+pytest-asyncio>=0.23.0
+httpx>=0.27.0              # required by FastAPI TestClient
