@@ -1,0 +1,566 @@
+<!doctype html>
+<html lang="tr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>LangChain Chatbot</title>
+  <style>
+    :root {
+      --bg:#0b1020; --panel:#0f1834; --muted:#9aa6d1; --accent:#5b8cff;
+      --accent2:#00d1b2; --danger:#ff5b6e; --text:#eef1f6;
+    }
+    :root.light {
+      --bg:#f6f7fb; --panel:#ffffff; --muted:#6b7280; --accent:#3b82f6;
+      --accent2:#10b981; --danger:#ef4444; --text:#111827;
+    }
+    * { box-sizing: border-box; }
+    body {
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+      margin: 0; background: var(--bg); color: var(--text);
+      transition: background .2s ease, color .2s ease;
+    }
+    .wrap { max-width: 1080px; margin: 24px auto; padding: 16px; }
+
+    .toolbar {
+      display: flex; gap: 8px; align-items: center; flex-wrap: wrap;
+      padding: 12px; background: var(--panel); border-radius: 16px;
+      box-shadow: 0 10px 30px rgba(0,0,0,.15);
+      position: sticky; top: 12px; z-index: 5;
+    }
+    .brand { font-weight: 800; letter-spacing: .2px; }
+    .pill { border: 1px solid #2a355a33; border-radius: 12px; padding: 8px 10px; background: transparent; color: inherit; }
+    select.pill, input.pill { height: 38px; }
+    .btn { cursor: pointer; border: none; border-radius: 12px; padding: 10px 12px; background: var(--accent); color: white; }
+    .btn.secondary { background: #26407a; }
+    .btn.ghost { background: transparent; border: 1px solid #2a355a33; color: inherit; }
+    .btn.danger { background: var(--danger); }
+    .right { margin-left: auto; display: flex; gap: 8px; align-items: center; }
+    .switch { display: flex; align-items: center; gap: 8px; }
+
+    .card {
+      background: var(--panel); border-radius: 16px; padding: 0;
+      box-shadow: 0 10px 30px rgba(0,0,0,.15); margin-top: 16px;
+      min-height: 70vh; display: flex; flex-direction: column;
+    }
+    .chat {
+      padding: 16px; display: flex; flex-direction: column; gap: 10px;
+      overflow: auto; height: 60vh; scroll-behavior: smooth;
+    }
+    .msg {
+      padding: 12px 14px; border-radius: 16px; width: fit-content;
+      max-width: 80%; line-height: 1.55; position: relative;
+    }
+    .msg pre { margin: 8px 0; padding: 10px; border-radius: 12px; background: #00000022; overflow: auto; }
+    .u { margin-left: auto; background: #26407a; color: #eef1f6; }
+    .a { background: #1b2548; color: #eef1f6; }
+    :root.light .u { background: #dbeafe; color: #111827; }
+    :root.light .a { background: #f3f4f6; color: #111827; }
+    .time { position: absolute; bottom: -18px; right: 8px; font-size: 11px; color: var(--muted); }
+    .row { display: flex; gap: 8px; padding: 12px; border-top: 1px solid #1e2a5233; }
+    textarea {
+      flex: 1; resize: none; min-height: 46px; max-height: 200px;
+      border-radius: 12px; border: 1px solid #2a355a33;
+      background: transparent; color: inherit; padding: 10px 12px;
+    }
+    textarea:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px rgba(91,140,255,.25); }
+
+    .muted { color: var(--muted); font-size: 12px; }
+    .status { margin-left: 8px; }
+    .spinner {
+      width: 14px; height: 14px; border-radius: 50%;
+      border: 2px solid #2a355a66; border-top-color: var(--accent2);
+      display: inline-block; animation: spin 1s linear infinite; vertical-align: middle;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .toast {
+      position: fixed; bottom: 16px; right: 16px; background: var(--panel);
+      border: 1px solid #2a355a33; padding: 10px 12px; border-radius: 12px; display: none;
+    }
+    .hidden { display: none; }
+    .fab { position: fixed; right: 18px; bottom: 80px; border-radius: 999px; padding: 10px 12px; box-shadow: 0 8px 20px rgba(0,0,0,.2); }
+    .bubble-tools { position: absolute; top: 6px; right: 6px; display: flex; gap: 6px; opacity: 0; transition: opacity .15s ease; }
+    .msg:hover .bubble-tools { opacity: .9; }
+    .tool { border: none; padding: 6px 8px; font-size: 11px; border-radius: 8px; background: #00000033; color: #fff; cursor: pointer; }
+    :root.light .tool { background: #00000010; color: #111; }
+    .sources { padding: 10px 12px; border-top: 1px dashed #2a355a55; }
+    .sources a { color: var(--accent2); text-decoration: none; cursor: pointer; }
+
+    /* Modal */
+    .modal { position: fixed; inset: 0; display: none; align-items: center; justify-content: center; background: rgba(0,0,0,.4); }
+    .modal .box {
+      width: min(90vw, 820px); max-height: 80vh; overflow: auto;
+      background: var(--panel); border-radius: 16px; padding: 16px;
+      box-shadow: 0 10px 30px rgba(0,0,0,.4);
+    }
+    .modal .head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+    .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="toolbar">
+      <div class="brand">🤖 LangChain Chatbot</div>
+      <span class="muted status" id="status"></span>
+      <div class="right">
+        <div class="switch">
+          <label class="muted">Tema</label>
+          <button class="btn ghost" id="theme" title="Açık/Koyu">🌗</button>
+        </div>
+        <select class="pill" id="model">
+          <option value="gpt-4o-mini" selected>gpt-4o-mini</option>
+          <option value="gpt-4o">gpt-4o</option>
+        </select>
+        <input class="pill" id="temperature" type="range" min="0" max="1.5" step="0.1" value="0.4" style="width:160px" title="Temperature" />
+        <span class="muted" id="tval">0.4</span>
+        <label class="pill" style="display:flex;align-items:center;gap:6px;">
+          <input type="checkbox" id="use_rag" /> Kaynakları kullan
+        </label>
+        <label class="pill" style="display:flex;align-items:center;gap:6px;">
+          <input type="checkbox" id="use_stream" checked /> Akışlı yanıt
+        </label>
+        <button class="btn ghost" id="clear">Sohbeti Temizle</button>
+        <button class="btn secondary" id="export">Dışa Aktar</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="chat" id="chat"></div>
+
+      <!-- Upload row -->
+      <div class="row" style="border-bottom:1px solid #1e2a5233">
+        <form id="uploader" enctype="multipart/form-data" style="display:flex;gap:8px;align-items:center;">
+          <input type="file" name="file" id="file" class="pill" accept=".txt,.md,.pdf" />
+          <button type="submit" class="btn ghost">Yükle</button>
+          <span class="muted" id="docinfo"></span>
+        </form>
+      </div>
+
+      <!-- Input row -->
+      <div class="row">
+        <textarea id="prompt" placeholder="Bir şey yaz..." rows="1"></textarea>
+        <button class="btn" id="send">Gönder</button>
+      </div>
+
+      <div class="sources hidden" id="sources"></div>
+    </div>
+
+    <p class="muted">Not: API anahtarı yoksa otomatik mock moda geçilir. Ctrl/Cmd+Enter: Gönder</p>
+  </div>
+
+  <button class="btn fab" id="scrolldown">▼</button>
+  <div class="toast" id="toast"></div>
+
+  <!-- Source detail modal -->
+  <div class="modal" id="modal">
+    <div class="box">
+      <div class="head">
+        <div id="msource" class="muted"></div>
+        <div>
+          <button class="btn ghost" id="copySrc">Kopyala</button>
+          <button class="btn danger" id="closeModal">Kapat</button>
+        </div>
+      </div>
+      <pre class="mono"><code id="mtext"></code></pre>
+    </div>
+  </div>
+
+  <script>
+    // ---------------------------------------------------------------------------
+    // Element references
+    // ---------------------------------------------------------------------------
+    const chat       = document.getElementById('chat');
+    const promptEl   = document.getElementById('prompt');
+    const modelEl    = document.getElementById('model');
+    const tempEl     = document.getElementById('temperature');
+    const tval       = document.getElementById('tval');
+    const statusEl   = document.getElementById('status');
+    const sendBtn    = document.getElementById('send');
+    const clearBtn   = document.getElementById('clear');
+    const exportBtn  = document.getElementById('export');
+    const themeBtn   = document.getElementById('theme');
+    const scrollBtn  = document.getElementById('scrolldown');
+    const toastEl    = document.getElementById('toast');
+    const uploader   = document.getElementById('uploader');   // declared once
+    const docinfo    = document.getElementById('docinfo');
+    const useRag     = document.getElementById('use_rag');
+    const useStream  = document.getElementById('use_stream');
+    const sourcesBox = document.getElementById('sources');
+    const modal      = document.getElementById('modal');
+    const mtext      = document.getElementById('mtext');
+    const msource    = document.getElementById('msource');
+    const closeModal = document.getElementById('closeModal');
+    const copySrc    = document.getElementById('copySrc');
+
+    // ---------------------------------------------------------------------------
+    // LocalStorage helpers
+    // ---------------------------------------------------------------------------
+    function save(k, v) { try { localStorage.setItem(k, v); } catch {} }
+    function load(k, d = null) { try { return localStorage.getItem(k) ?? d; } catch { return d; } }
+
+    // ---------------------------------------------------------------------------
+    // Theme
+    // ---------------------------------------------------------------------------
+    function applyTheme(name) {
+      document.documentElement.classList.toggle('light', name === 'light');
+      save('theme', name);
+    }
+    applyTheme(load('theme', 'dark'));
+    themeBtn.addEventListener('click', () => {
+      applyTheme(document.documentElement.classList.contains('light') ? 'dark' : 'light');
+    });
+
+    // ---------------------------------------------------------------------------
+    // Persisted preferences
+    // ---------------------------------------------------------------------------
+    const savedModel = load('model');
+    if (savedModel) modelEl.value = savedModel;
+    modelEl.addEventListener('change', () => save('model', modelEl.value));
+
+    const savedTemp = load('temp');
+    if (savedTemp) tempEl.value = savedTemp;
+    tval.textContent = parseFloat(tempEl.value).toFixed(1);
+    tempEl.addEventListener('input', () => {
+      tval.textContent = parseFloat(tempEl.value).toFixed(1);
+      save('temp', tempEl.value);
+    });
+
+    useRag.checked    = load('use_rag',    'false') === 'true';
+    useStream.checked = load('use_stream', 'true')  === 'true';
+    useRag.addEventListener('change',    () => save('use_rag',    useRag.checked));
+    useStream.addEventListener('change', () => save('use_stream', useStream.checked));
+
+    // ---------------------------------------------------------------------------
+    // Toast
+    // ---------------------------------------------------------------------------
+    function showToast(text) {
+      toastEl.textContent = text;
+      toastEl.style.display = 'block';
+      setTimeout(() => { toastEl.style.display = 'none'; }, 1800);
+    }
+
+    function ts() {
+      return new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    }
+
+    // ---------------------------------------------------------------------------
+    // Minimal Markdown renderer (safe: HTML-escaped before processing)
+    // ---------------------------------------------------------------------------
+    function md(text) {
+      let safe = (text || '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;');
+      const parts = safe.split('```');
+      let html = '';
+      for (let i = 0; i < parts.length; i++) {
+        if (i % 2 === 1) {
+          html += '<pre><code>' + parts[i] + '</code></pre>';
+        } else {
+          html += parts[i]
+            .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+            .replace(/\*([^*]+)\*/g,     '<em>$1</em>')
+            .replace(/`([^`]+)`/g,       '<code>$1</code>')
+            .replace(/\n/g,              '<br>');
+        }
+      }
+      return html;
+    }
+
+    // ---------------------------------------------------------------------------
+    // Bubble tools (copy / regenerate)
+    // ---------------------------------------------------------------------------
+    let lastUser = '';
+
+    function bubbleTools() {
+      const c    = document.createElement('div');
+      c.className = 'bubble-tools';
+
+      const copy = document.createElement('button');
+      copy.className   = 'tool';
+      copy.textContent = 'Kopyala';
+      copy.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const text = c.parentElement.querySelector('.content').innerText;
+        navigator.clipboard?.writeText(text);
+        showToast('Kopyalandı');
+      });
+
+      const regen = document.createElement('button');
+      regen.className   = 'tool';
+      regen.textContent = 'Yenile';
+      regen.addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (lastUser) send(lastUser, true);
+      });
+
+      c.appendChild(copy);
+      c.appendChild(regen);
+      return c;
+    }
+
+    // ---------------------------------------------------------------------------
+    // Chat bubble
+    // ---------------------------------------------------------------------------
+    function append(role, text) {
+      const wrap    = document.createElement('div');
+      wrap.className = 'msg ' + (role === 'user' ? 'u' : 'a');
+
+      const content    = document.createElement('div');
+      content.className = 'content';
+      content.innerHTML = md(text);
+
+      const time    = document.createElement('div');
+      time.className = 'time';
+      time.textContent = ts();
+
+      wrap.appendChild(content);
+      wrap.appendChild(time);
+      if (role === 'assistant') wrap.appendChild(bubbleTools());
+      chat.appendChild(wrap);
+      chat.scrollTop = chat.scrollHeight;
+      return wrap;
+    }
+
+    // ---------------------------------------------------------------------------
+    // Loading state
+    // ---------------------------------------------------------------------------
+    function setLoading(v) {
+      if (v) {
+        statusEl.innerHTML = '<span class="spinner"></span> yazıyor…';
+        sendBtn.disabled   = true;
+        promptEl.disabled  = true;
+      } else {
+        statusEl.textContent = '';
+        sendBtn.disabled     = false;
+        promptEl.disabled    = false;
+        promptEl.focus();
+      }
+    }
+
+    // ---------------------------------------------------------------------------
+    // Session management
+    // ---------------------------------------------------------------------------
+    async function ensureSession() {
+      try { await fetch('/session', { method: 'POST' }); } catch {}
+    }
+
+    async function resetSession() {
+      try { await fetch('/reset', { method: 'POST' }); } catch {}
+      chat.innerHTML = '';
+      sourcesBox.classList.add('hidden');
+      sourcesBox.innerHTML = '';
+      showToast('Sohbet temizlendi');
+    }
+
+    // ---------------------------------------------------------------------------
+    // Textarea autosize
+    // ---------------------------------------------------------------------------
+    function autosize() {
+      promptEl.style.height = 'auto';
+      promptEl.style.height = Math.min(promptEl.scrollHeight, 200) + 'px';
+    }
+    promptEl.addEventListener('input', autosize);
+    autosize();
+
+    // ---------------------------------------------------------------------------
+    // Upload — event listener on the single `uploader` declaration above
+    // ---------------------------------------------------------------------------
+    uploader.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const fileInput = document.getElementById('file');
+      if (!fileInput.files.length) { showToast('Dosya seç!'); return; }
+      const fd = new FormData();
+      fd.append('file', fileInput.files[0]);
+      try {
+        const res = await fetch('/upload', { method: 'POST', body: fd });
+        const j   = await res.json();
+        if (!res.ok) { showToast('Hata: ' + (j.detail || res.status)); return; }
+        docinfo.textContent = j.message || ('Yüklendi: ' + (fileInput.files[0]?.name || ''));
+        showToast('Yüklendi');
+      } catch (err) {
+        showToast('Yükleme hatası');
+      }
+    });
+
+    // ---------------------------------------------------------------------------
+    // Sources
+    // ---------------------------------------------------------------------------
+    function renderSources(sources) {
+      if (!useRag.checked || !sources || !sources.length) return;
+      sourcesBox.innerHTML =
+        '<div class="muted">Kaynaklar:</div>' +
+        sources.map((s, i) =>
+          `<div>${i + 1}. <a data-id="${escAttr(s.id)}"><strong>${escHtml(s.source)}</strong></a>` +
+          ` — <span class="muted">${escHtml((s.snippet || '').slice(0, 160))}…</span></div>`
+        ).join('');
+      sourcesBox.classList.remove('hidden');
+      sourcesBox.querySelectorAll('a[data-id]').forEach((a) => {
+        a.addEventListener('click', async () => {
+          try {
+            const rid = a.getAttribute('data-id');
+            const r   = await fetch('/source?id=' + encodeURIComponent(rid));
+            if (!r.ok) throw new Error('HTTP ' + r.status);
+            const j = await r.json();
+            mtext.textContent   = j.text   || '';
+            msource.textContent = j.source || '';
+            modal.style.display = 'flex';
+          } catch {
+            showToast('Kaynak açılamadı');
+          }
+        });
+      });
+    }
+
+    // HTML-escape helpers used in renderSources
+    function escHtml(s) { return (s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+    function escAttr(s) { return (s || '').replace(/"/g, '&quot;'); }
+
+    // ---------------------------------------------------------------------------
+    // Modal
+    // ---------------------------------------------------------------------------
+    closeModal.addEventListener('click', () => {
+      modal.style.display = 'none';
+      mtext.textContent   = '';
+      msource.textContent = '';
+    });
+    copySrc.addEventListener('click', () => {
+      navigator.clipboard?.writeText(mtext.textContent || '');
+      showToast('Kaynak kopyalandı');
+    });
+    modal.addEventListener('click', (e) => {
+      if (e.target === modal) {
+        modal.style.display = 'none';
+      }
+    });
+
+    // ---------------------------------------------------------------------------
+    // Streaming helpers
+    // ---------------------------------------------------------------------------
+    const SOURCES_SENTINEL = '\n__SOURCES__:';
+
+    function splitStreamSources(full) {
+      const idx = full.lastIndexOf(SOURCES_SENTINEL);
+      if (idx === -1) return { text: full, sources: null };
+      const text      = full.slice(0, idx);
+      const jsonPart  = full.slice(idx + SOURCES_SENTINEL.length).trim();
+      let sources = null;
+      try { sources = JSON.parse(jsonPart); } catch {}
+      return { text, sources };
+    }
+
+    // ---------------------------------------------------------------------------
+    // Send / streaming
+    // ---------------------------------------------------------------------------
+    async function send(textOpt = null, isRetry = false) {
+      const text = (textOpt ?? promptEl.value).trim();
+      if (!text) return;
+
+      if (!isRetry) {
+        promptEl.value = '';
+        autosize();
+        append('user', text);
+      }
+      lastUser = text;
+      setLoading(true);
+
+      sourcesBox.classList.add('hidden');
+      sourcesBox.innerHTML = '';
+
+      const body = {
+        message:     text,
+        model:       modelEl.value,
+        temperature: parseFloat(tempEl.value) || 0.4,
+        rag:         useRag.checked,
+      };
+
+      try {
+        if (useStream.checked) {
+          // --- Streaming path ---
+          const res = await fetch('/chat_stream', {
+            method:  'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body:    JSON.stringify(body),
+          });
+          if (!res.ok) throw new Error('HTTP ' + res.status);
+
+          const reader  = res.body.getReader();
+          const decoder = new TextDecoder();
+          let full      = '';
+          const bubble  = append('assistant', '');
+
+          function updateBubble(raw) {
+            const { text: display, sources } = splitStreamSources(raw);
+            bubble.querySelector('.content').innerHTML = md(display);
+            if (sources) renderSources(sources);
+          }
+
+          // Read until stream is done
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            full += decoder.decode(value, { stream: true });
+            updateBubble(full);
+            chat.scrollTop = chat.scrollHeight;
+          }
+          // Final flush
+          full += decoder.decode();
+          updateBubble(full);
+          chat.scrollTop = chat.scrollHeight;
+
+        } else {
+          // --- Non-streaming path ---
+          const res = await fetch('/chat', {
+            method:  'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body:    JSON.stringify(body),
+          });
+          if (!res.ok) throw new Error('HTTP ' + res.status);
+          const j = await res.json();
+          append('assistant', j.reply);
+          renderSources(j.sources || []);
+        }
+      } catch (e) {
+        append('assistant', 'Hata: ' + (e?.message || String(e)));
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    // ---------------------------------------------------------------------------
+    // Export chat
+    // ---------------------------------------------------------------------------
+    function exportChat() {
+      const items = Array.from(document.querySelectorAll('.msg')).map((el) => ({
+        role: el.classList.contains('u') ? 'user' : 'assistant',
+        text: el.querySelector('.content')?.innerText || '',
+        time: el.querySelector('.time')?.textContent  || '',
+      }));
+      const blob = new Blob([JSON.stringify(items, null, 2)], { type: 'application/json' });
+      const a    = document.createElement('a');
+      a.href     = URL.createObjectURL(blob);
+      a.download = 'chat_export.json';
+      a.click();
+      URL.revokeObjectURL(a.href);
+    }
+
+    // ---------------------------------------------------------------------------
+    // Event bindings
+    // ---------------------------------------------------------------------------
+    sendBtn.addEventListener('click',   () => send());
+    clearBtn.addEventListener('click',  resetSession);
+    exportBtn.addEventListener('click', exportChat);
+    promptEl.addEventListener('keydown', (e) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') send();
+    });
+    scrollBtn.addEventListener('click', () => { chat.scrollTop = chat.scrollHeight; });
+    chat.addEventListener('scroll', () => {
+      const nearBottom = chat.scrollHeight - chat.scrollTop - chat.clientHeight < 40;
+      scrollBtn.style.display = nearBottom ? 'none' : 'inline-block';
+    });
+
+    // Initialise session on page load
+    ensureSession();
+  </script>
+</body>
+</html>
